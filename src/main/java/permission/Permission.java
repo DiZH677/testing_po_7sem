@@ -1,0 +1,28 @@
+package permission;
+
+public enum Permission {
+    GET_DTP,
+    ADD_DTP,
+    EDIT_DTP,
+    DELETE_DTP,
+    AED_DTP,
+    GET_CAR,
+    ADD_CAR,
+    EDIT_CAR,
+    DELETE_CAR,
+    AED_CAR,
+    GET_PARTICIPANT,
+    ADD_PARTICIPANT,
+    EDIT_PARTICIPANT,
+    DELETE_PARTICIPANT,
+    AED_PARTICIPANT,
+    GET_USER,
+    ADD_USER,
+    EDIT_USER,
+    DELETE_USER,
+    GET_ALL_BY_PARAMS,
+    GET_DTP_BY_PARAMS,
+    GET_CAR_BY_PARAMS,
+    GET_PARTICIPANT_BY_PARAMS,
+    ADMIN
+}
