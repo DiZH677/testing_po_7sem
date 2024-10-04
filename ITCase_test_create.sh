@@ -1,12 +1,31 @@
 #!/bin/bash
 
-# Создаем базу данных
-psql -U postgres -c 'CREATE DATABASE itcase_test;'
+# Проверка наличия аргумента
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <schema_name>"
+    exit 1
+fi
+SCHEMA_NAME=$1
+
+# Создаем базу данных, если она не существует
+if ! psql -U postgres -lqt | cut -d \| -f 1 | grep -qw "itcase_test"; then
+    psql -U postgres -c 'CREATE DATABASE itcase_test;'
+    echo "Database itcase_test created."
+else
+    echo "Database itcase_test already exists."
+fi
+# Создаем схему, если она не существует
+if ! psql -U postgres -d itcase_test -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name = '$SCHEMA_NAME';" | grep -qw "$SCHEMA_NAME"; then
+    psql -U postgres -d itcase_test -c "CREATE SCHEMA $SCHEMA_NAME;"
+    echo "Schema $SCHEMA_NAME created."
+else
+    echo "Schema $SCHEMA_NAME already exists."
+fi
 
 # Выполняем SQL-запросы для создания таблиц в тестовой базе данных
-psql -U postgres -d itcase_test -c '
-    DROP TABLE IF EXISTS DTP CASCADE;
-    CREATE TABLE DTP
+psql -U postgres -d itcase_test -c "
+    DROP TABLE IF EXISTS $SCHEMA_NAME.DTP CASCADE;
+    CREATE TABLE $SCHEMA_NAME.DTP
     (
         id          serial primary key,
         description varchar(100),
@@ -19,8 +38,8 @@ psql -U postgres -d itcase_test -c '
         count_parts int
     );
     
-    DROP TABLE IF EXISTS VEHICLE CASCADE;
-    CREATE TABLE VEHICLE
+    DROP TABLE IF EXISTS $SCHEMA_NAME.VEHICLE CASCADE;
+    CREATE TABLE $SCHEMA_NAME.VEHICLE
     (
         id serial primary key,
         dtp_id int,
@@ -30,11 +49,11 @@ psql -U postgres -d itcase_test -c '
         type_ts varchar(200),
         car_year int,
         color varchar(15),
-        FOREIGN KEY(dtp_id) REFERENCES DTP(id)
+        FOREIGN KEY(dtp_id) REFERENCES $SCHEMA_NAME.DTP(id)
     );
     
-    DROP TABLE IF EXISTS PARTICIPANT CASCADE;
-    CREATE TABLE PARTICIPANT
+    DROP TABLE IF EXISTS $SCHEMA_NAME.PARTICIPANT CASCADE;
+    CREATE TABLE $SCHEMA_NAME.PARTICIPANT
     (
         id serial primary key,
         vehicle_id int,
@@ -43,19 +62,19 @@ psql -U postgres -d itcase_test -c '
         SAFETY_BELT bool,
         pol varchar(15),
         health varchar(200),
-        FOREIGN KEY (vehicle_id) REFERENCES VEHICLE(id)
+        FOREIGN KEY (vehicle_id) REFERENCES $SCHEMA_NAME.VEHICLE(id)
     );
 
-    DROP TABLE IF EXISTS users;
-    CREATE TABLE Users
+    DROP TABLE IF EXISTS $SCHEMA_NAME.users;
+    CREATE TABLE $SCHEMA_NAME.Users
     (
         id serial primary key,
         login varchar(50),
         password varchar(50),
         role varchar(50)
-    );'
+    );"
 
 # Вставляем данные в таблицу users
 psql -U postgres -d itcase_test -c "
-    INSERT INTO users (id, login, password, role) VALUES (1, 'lgn', 'pswrd', 'Analyst');
+    INSERT INTO $SCHEMA_NAME.users (id, login, password, role) VALUES (1, 'lgn', 'pswrd', 'Analyst');
 "

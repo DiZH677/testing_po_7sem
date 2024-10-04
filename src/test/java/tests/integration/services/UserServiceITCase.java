@@ -30,6 +30,9 @@ public class UserServiceITCase {
         String password = Configurator.getValue("db.password");
 
         connectionManager = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+        String schemaName = System.getProperty("testSchema");
+        connectionManager.setSearchPath(schemaName);
+
         // Инициализация зависимостей
         userRepository = new PostgresUserRepository(connectionManager);
         userService = new UserService(userRepository);

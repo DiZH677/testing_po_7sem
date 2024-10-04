@@ -29,6 +29,9 @@ class PostgresCarRepositoryIT {
         String password = Configurator.getValue("db.password");
 
         connectionManager = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+        String schemaName = System.getProperty("testSchema");
+        connectionManager.setSearchPath(schemaName);
+
         repository = new PostgresCarRepository(connectionManager);
         // Очистка таблицы перед тестами
         if (connectionManager.getConnection() == null) {

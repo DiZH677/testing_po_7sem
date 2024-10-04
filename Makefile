@@ -8,7 +8,7 @@ BACKEND_PID_FILE = backend.pid
 all: clean tests
 
 tests:
-	rm -rf allure-results
+	#rm -rf allure-results
 	$(MAKE) unit && $(MAKE) integration && $(MAKE) e2e || true
 ifeq ($(REPORT),true)
 	$(MAKE) generate-report
@@ -42,7 +42,6 @@ e2e:
 generate-report:
 	cp -r ./allure-report/history ./allure-results
 	allure generate allure-results --clean
-	cp enviroment.properties ./allure-results
 	allure serve allure-results
 
 clean:

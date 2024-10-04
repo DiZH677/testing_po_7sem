@@ -4,13 +4,11 @@ WORKDIR /app
 
 COPY . /app
 
+
 # Устанавливаем Allure для отчетов, make
 RUN apt-get update && \
-   apt-get install -y postgresql postgresql-contrib
-
-# Запускаем PostgreSQL в фоновом режиме
-# RUN service postgresql start && \
-#     sleep 5 # Подождите, пока PostgreSQL полностью запустится
+   apt-get install -y postgresql postgresql-contrib && \
+   apt-get install -y lsof
 
 RUN ls /etc/postgresql
 
@@ -18,25 +16,22 @@ RUN ls /etc/postgresql
 RUN PG_VERSION=$(psql --version) && \
     sed -i 's/peer/trust/g' /etc/postgresql/11/main/pg_hba.conf && \
     sed -i 's/md5/trust/g' /etc/postgresql/11/main/pg_hba.conf
-#     echo "host all all 0.0.0.0/0 peer" >  /etc/postgresql/$PG_VERSION/main/pg_hba.conf && \
-#     echo "listen_addresses='*'" >> /etc/postgresql/$PG_VERSION/main/postgresql.conf
 
-# Запускаем PostgreSQL в фоновом режиме
-# RUN service postgresql restart
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    make
 
-# Создайте тестовую базу данных
-# COPY ITCase_test_create.sh /app/
-# RUN chmod +x /app/ITCase_test_create.sh && /app/ITCase_test_create.sh
+RUN wget -q https://github.com/allure-framework/allure2/releases/download/2.20.1/allure-2.20.1.zip && \
+    unzip allure-2.20.1.zip -d /opt/ && \
+    ln -s /opt/allure-2.20.1/bin/allure /usr/local/bin/allure && \
+    rm allure-2.20.1.zip
 
-# Устанавливаем пароль для пользователя postgres
-# RUN sleep 5 && psql -U postgres -c "ALTER USER postgres PASSWORD 'your_password';"
-# RUN sleep 5 && su postgres -c 'psql -c "CREATE USER postgres;"'
-
-RUN apt-get install -y allure && \
-       apt-get install -y make
 
 # Консольный вывод
 RUN ls /app && echo "Копирование собранных файлов из предыдущей стадии..."
 
 # Запуск make для выполнения тестов
-CMD service postgresql start && make tests
+CMD service postgresql start && \
+    sleep 5 && \
+    exec ./tests.sh 0

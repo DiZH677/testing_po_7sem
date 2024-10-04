@@ -3,10 +3,7 @@ package tests.integration.repositories;
 import configurator.Configurator;
 import entities.DTP;
 import exceptions.RepositoryException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import params.DTPParams;
 import repositories.postgres.PostgresConnectionManager;
 import repositories.postgres.PostgresDTPRepository;
@@ -19,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class PostgresDTPRepositoryITCase {
-    private PostgresConnectionManager connectionManager;
+    private static PostgresConnectionManager connectionManager;
     private PostgresDTPRepository repository;
 
     @BeforeAll
@@ -29,11 +26,10 @@ public class PostgresDTPRepositoryITCase {
         String password = Configurator.getValue("db.password");
 
         connectionManager = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+        String schemaName = System.getProperty("testSchema");
+        connectionManager.setSearchPath(schemaName);
+
         repository = new PostgresDTPRepository(connectionManager);
-        // Очистка таблицы перед тестами
-        if (connectionManager.getConnection() == null) {
-            fail("Error testing while connection");
-        }
     }
 
     @AfterAll
@@ -60,6 +56,7 @@ public class PostgresDTPRepositoryITCase {
                 resultSet.getString(7), resultSet.getInt(8),
                 resultSet.getInt(9));
         assertDTP(dtp, newDTP);
+        resultSet.close();
 
         // Clean up
         connectionManager.executeSQLQuery("DELETE FROM dtp WHERE id = 1;");
@@ -97,6 +94,8 @@ public class PostgresDTPRepositoryITCase {
         assertTrue(res);
         ResultSet resultSet = connectionManager.executeSQLQuery("SELECT COUNT(*) as cnt FROM dtp WHERE id = 1 AND description = 'Updated Description'");
         assertTrue(resultSet.next(), "Result set should not be empty");
+        assertEquals(1, resultSet.getInt("cnt"), "Count should be 1 for updated description");
+        resultSet.close();
 
         // Clean up
         connectionManager.executeSQLQuery("DELETE FROM dtp WHERE id = 1;");
@@ -115,6 +114,7 @@ public class PostgresDTPRepositoryITCase {
         assertTrue(isDeleted, "DTP should be deleted successfully");
         ResultSet resultSet = connectionManager.executeSQLQuery("SELECT * FROM dtp WHERE id = 1;");
         assertFalse(resultSet.next());
+        resultSet.close();
 
         // Clean up (in case it was not deleted)
         connectionManager.executeSQLQuery("DELETE FROM dtp WHERE id = 1;");

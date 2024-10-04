@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class PostgresUserRepositoryITCase {
-
     private PostgresConnectionManager connectionManager;
     private PostgresUserRepository repository;
 
@@ -29,6 +28,9 @@ public class PostgresUserRepositoryITCase {
         String password = Configurator.getValue("db.password");
 
         connectionManager = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+        String schemaName = System.getProperty("testSchema");
+        connectionManager.setSearchPath(schemaName);
+
         repository = new PostgresUserRepository(connectionManager);
         // Очистка таблицы перед тестами
         connectionManager.executeSQLQuery("DELETE FROM users;");

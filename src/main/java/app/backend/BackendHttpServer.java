@@ -21,7 +21,11 @@ import services.ReportService;
 import services.UserService;
 import user.User;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
@@ -37,15 +41,27 @@ public class BackendHttpServer {
     private static User usr;
 
     public static void main(String[] args) throws Exception {
-        configureAndConnectToDatabase();
+        int port = 8000;
+        HttpServer server = null;
+        boolean isPortAvailable = false;
+        while (!isPortAvailable) {
+            try {
+                server = HttpServer.create(new InetSocketAddress(port), 0); // Пытаемся создать сервер на порту 8000
+                isPortAvailable = true; // Если успешно, устанавливаем флаг
+            } catch (BindException e) {
+                System.out.println("Port " + port + " is already in use. Waiting for it to become available...");
+                Thread.sleep(5000); // Ждем 5 секунд перед повторной попыткой
+            }
+        }
 
-        usr = usrService.getUserLP("", "");
-
-        HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/", new MyHandler());
         server.setExecutor(null); // creates a default executor
         server.start();
         System.out.println("Server started on port 8000");
+
+        configureAndConnectToDatabase();
+
+        usr = usrService.getUserLP("", "");
     }
 
     // засунуть в jwt токен айди пользователя (возможно и его роль)
@@ -253,7 +269,12 @@ public class BackendHttpServer {
         IUserRepository usrRep = null;
         if (typeDB.equals("postgres"))
         {
-            mngr = PostgresConnectionManager.getInstance(host, database, username, password);
+            mngr = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+            String schema = System.getProperty("testSchema");
+            if (schema != null) {
+                mngr.setSearchPath(schema);
+            }
+//            mngr = PostgresConnectionManager.getInstance(host, database, username, password);
             dtpRep = new PostgresDTPRepository(mngr);
             carRep = new PostgresCarRepository(mngr);
             prtRep = new PostgresParticipantRepository(mngr);

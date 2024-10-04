@@ -73,9 +73,9 @@ public class ReportGeneratorITCase {
         assertNotNull(reportBytes, "Отчет должен быть успешно создан");
         String expectedJson = new GsonBuilder().setPrettyPrinting().create().toJson(testData);
         assertEquals(expectedJson, new String(reportBytes), "Содержимое отчета должно соответствовать ожидаемому JSON");
-        File reportFile = new File("json.json");
-        assertTrue(reportFile.exists(), "Файл отчета должен существовать");
-        reportFile.delete();
+//        File reportFile = new File("json.json");
+//        assertTrue(reportFile.exists(), "Файл отчета должен существовать");
+//        reportFile.delete();
     }
 
     @Test

@@ -23,11 +23,22 @@
             <scope>test</scope>
         </dependency>
 
+<!--        <dependency>-->
+<!--            <groupId>log4j</groupId>-->
+<!--            <artifactId>log4j</artifactId>-->
+<!--            <version>1.2.17</version>-->
+<!--            <scope>test</scope> &lt;!&ndash; если это нужно только для тестов &ndash;&gt;-->
+<!--        </dependency>-->
+
         <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
-            <scope>test</scope> <!-- если это нужно только для тестов -->
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.3</version> <!-- Проверьте последнюю версию -->
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.3</version> <!-- Проверьте последнюю версию -->
         </dependency>
 
 
@@ -59,6 +70,13 @@
             <version>4.6.1</version>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>5.0.1</version> <!-- Проверьте наличие новой версии -->
+        </dependency>
+
 
         <!-- PostgreSQL JDBC драйвер -->
         <dependency>
@@ -179,35 +197,36 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M5</version>
+                <version>3.0.0-M5</version> <!-- используйте актуальную версию -->
+                <configuration>
+<!--                    <forkCount>1</forkCount>  &lt;!&ndash; запускает один тестовый класс в одной JVM &ndash;&gt;-->
+<!--                    <reuseForks>false</reuseForks> &lt;!&ndash; каждый класс запускается в новой JVM &ndash;&gt;-->
+<!--                    <forkMode>always</forkMode> &lt;!&ndash; каждый тест запускается в новой JVM &ndash;&gt;-->
+<!--                    <runOrder>random</runOrder>-->
+<!--                        <parallel>methods</parallel> &lt;!&ndash; Задает, что тесты будут выполняться параллельно по методам &ndash;&gt;-->
+<!--                        <threadCount>3</threadCount> &lt;!&ndash; Количество потоков для выполнения тестов &ndash;&gt;-->
+                </configuration>
             </plugin>
+
+
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.0.0-M5</version>
+                <configuration>
+                    <!--                    <forkCount>1</forkCount>  &lt;!&ndash; запускает один тестовый класс в одной JVM &ndash;&gt;-->
+                    <!--                    <reuseForks>false</reuseForks> &lt;!&ndash; каждый класс запускается в новой JVM &ndash;&gt;-->
+                    <!--                    <forkMode>always</forkMode> &lt;!&ndash; каждый тест запускается в новой JVM &ndash;&gt;-->
+                    <!--                    <runOrder>random</runOrder>-->
+<!--                    <parallel>methods</parallel> &lt;!&ndash; Задает, что тесты будут выполняться параллельно по методам &ndash;&gt;-->
+<!--                    <threadCount>3</threadCount> &lt;!&ndash; Количество потоков для выполнения тестов &ndash;&gt;-->
+                </configuration>
             </plugin>
         </plugins>
     </build>
 
     <profiles>
-        <profile>
-            <id>e2e</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <includes>
-                                <include>**/MainE2E.java</include> <!-- Или ваш класс E2E тестов -->
-                            </includes>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
         <profile>
             <id>unit</id>
             <build>
@@ -217,9 +236,65 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <includes>
-                                <include>**/Test.java</include> <!-- Или ваш класс E2E тестов -->
+                                <include>**/*Test.java</include> <!-- Или ваш класс E2E тестов -->
                             </includes>
                         </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>integration</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*ITCase.java</include> <!-- Или ваш класс E2E тестов -->
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>e2e</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <parallel>none</parallel>
+                            <forkCount>1</forkCount>
+                            <includes>
+                                <include>**/MainE2E.java</include> <!-- Или ваш класс E2E тестов -->
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>run-all-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>run-all-tests</id>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <mainClass>your.main.class</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

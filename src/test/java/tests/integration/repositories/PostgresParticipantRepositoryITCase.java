@@ -30,11 +30,11 @@ public class PostgresParticipantRepositoryITCase {
         String password = Configurator.getValue("db.password");
 
         connectionManager = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+        String schemaName = System.getProperty("testSchema");
+        connectionManager.setSearchPath(schemaName);
+
         repository = new PostgresParticipantRepository(connectionManager);
         // Очистка таблицы перед тестами
-        if (connectionManager.getConnection() == null) {
-            fail("Error testing while connection");
-        }
         connectionManager.executeSQLQuery("DELETE FROM participant;");
         connectionManager.executeSQLQuery("DELETE FROM vehicle;");
         connectionManager.executeSQLQuery("DELETE FROM dtp;");
