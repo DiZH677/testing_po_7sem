@@ -8,7 +8,10 @@ BACKEND_PID_FILE = backend.pid
 all: clean tests
 
 tests:
+<<<<<<< HEAD
 	#rm -rf allure-results
+=======
+>>>>>>> 574ebda3f0de08e6bd82f7b6f82f8ffc1cebdbac
 	$(MAKE) unit && $(MAKE) integration && $(MAKE) e2e || true
 ifeq ($(REPORT),true)
 	$(MAKE) generate-report
