@@ -7,6 +7,7 @@ import IRepositories.IUserRepository;
 import app.console.ConsoleApp;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -18,16 +19,15 @@ import repositories.mongodb.*;
 import repositories.postgres.*;
 import services.DTPService;
 import services.ReportService;
+import services.TwoFactorService;
 import services.UserService;
 import user.User;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.BindException;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.util.List;
 import java.util.Scanner;
 
 public class BackendHttpServer {
@@ -41,27 +41,15 @@ public class BackendHttpServer {
     private static User usr;
 
     public static void main(String[] args) throws Exception {
-        int port = 8000;
-        HttpServer server = null;
-        boolean isPortAvailable = false;
-        while (!isPortAvailable) {
-            try {
-                server = HttpServer.create(new InetSocketAddress(port), 0); // Пытаемся создать сервер на порту 8000
-                isPortAvailable = true; // Если успешно, устанавливаем флаг
-            } catch (BindException e) {
-                System.out.println("Port " + port + " is already in use. Waiting for it to become available...");
-                Thread.sleep(5000); // Ждем 5 секунд перед повторной попыткой
-            }
-        }
+        configureAndConnectToDatabase();
 
+        usr = usrService.getUserLP("", "");
+
+        HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/", new MyHandler());
         server.setExecutor(null); // creates a default executor
         server.start();
         System.out.println("Server started on port 8000");
-
-        configureAndConnectToDatabase();
-
-        usr = usrService.getUserLP("", "");
     }
 
     // засунуть в jwt токен айди пользователя (возможно и его роль)
@@ -96,13 +84,27 @@ public class BackendHttpServer {
 
             String login = jsonObject.get("login").getAsString();
             String password = jsonObject.get("password").getAsString();
-
+            String twoFactorCode;
             User usrBL = usrService.getUserLP(login, password);
             if (usrBL == null) {
                 String response = "User is null";
                 CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
                 handleRequest(t, response, 400);
                 return;
+            }
+            else {
+                // Генерация и отправка 2FA-кода
+                twoFactorCode = TwoFactorService.generateCode();
+                TwoFactorService.saveCodeForUser(login, twoFactorCode, password);
+                TwoFactorService.sendTwoFactorCode(login, twoFactorCode, "Your Two-Factor Authentication Code"); // Отправляем код на email пользователя
+
+                // Отправляем ответ клиенту, что нужно ввести 2FA-код
+                JsonObject answer = new JsonObject();
+                answer.addProperty("answer", "Two-factor authentication required. Code sent to your email.");
+                if (System.getenv("DTP_TESTING_TRUE") != null) {
+                    answer.addProperty("code", twoFactorCode);
+                }
+                handleRequest(t, answer.toString(), 200);
             }
             UserUI usr = new UserUI(usrBL);
             JsonObject user = new JsonObject();
@@ -114,6 +116,32 @@ public class BackendHttpServer {
             user.addProperty("token", token);
             String response = user.toString();
             handleRequest(t, response, 200);
+        }
+
+        private void handleVerify2FARequest(HttpExchange t) throws IOException, RepositoryException {
+            JsonObject jsonObject = parseJsonRequest(t);
+            assert jsonObject != null;
+            String login = jsonObject.get("login").getAsString();
+            String code = jsonObject.get("code").getAsString();
+
+            String savedCode = TwoFactorService.getCodeForUser(login);
+            String savedPassword = TwoFactorService.getPasswordForUser(login);
+
+            if (savedCode != null && savedCode.equals(code)) {
+                // Успешная аутентификация, удаляем код из хранилища
+                TwoFactorService.removeCodeForUser(login);
+                User usr = usrService.getUserLP(login, savedPassword);
+
+                // Создаем JWT-токен
+                String token = JwtExample.createToken(login, usr.getRole(), usr.getId());
+
+                // Возвращаем токен пользователю
+                JsonObject response = new JsonObject();
+                response.addProperty("token", token);
+                handleRequest(t, response.toString(), 200);
+            } else {
+                handleRequest(t, "Invalid two-factor code", 401);
+            }
         }
 
         @Override
@@ -138,7 +166,11 @@ public class BackendHttpServer {
                         CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
                         handleRequest(t, "Invalid request", 400);
                     }
-                } else {
+                }
+            } else if ("/auth/verify-2fa".equals(requestPath) && "POST".equals(requestMethod)) {
+                try {
+                    handleVerify2FARequest(t);
+                } catch (RepositoryException e) {
                     CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
                     handleRequest(t, "Invalid request", 400);
                 }
@@ -147,7 +179,13 @@ public class BackendHttpServer {
                     handleOptionsRequest(t);
                 } else if (requestMethod.equals("GET")) {
                     handleUserRequest(t);
+                } else if (requestMethod.equals("PUT")) {
+                    handleUpdateUserRequest(t);
+                } else if (requestMethod.equals("DELETE")) {
+                    handleDelUserRequest(t);
                 }
+            } else if ("/user/confirm-password".equals(requestPath) && "PUT".equals(requestMethod)) {
+                handleConfirmPasswordChange(t);
             } else if ("/viewDTP".equals(requestPath)) {
                 if (requestMethod.equals("OPTIONS")) {
                     handleOptionsRequest(t);
@@ -188,6 +226,191 @@ public class BackendHttpServer {
             }
         }
 
+        private void handleDelUserRequest(HttpExchange t) {
+            String response = "Invalid request";
+
+            // Чтение данных из тела запроса (в частности, ID пользователя для удаления)
+            try (InputStreamReader isr = new InputStreamReader(t.getRequestBody(), StandardCharsets.UTF_8)) {
+                JsonObject json = JsonParser.parseReader(isr).getAsJsonObject();
+                int usrid = json.get("usrid").getAsInt();  // ID пользователя, который отправил запрос
+                int id = json.get("id").getAsInt();        // ID пользователя, которого нужно удалить
+
+                // Проверка, не пытается ли пользователь удалить свою учетную запись
+                if (usrid == id) {
+                    response = "You cannot delete your own account.";
+                    t.sendResponseHeaders(400, response.length());
+                    OutputStream os = t.getResponseBody();
+                    os.write(response.getBytes(StandardCharsets.UTF_8));
+                    os.close();
+                    return;
+                }
+
+                // Попытка удалить пользователя
+                boolean result = usrService.delUser(usrid, id);
+                if (result) {
+                    response = "User successfully deleted.";
+                    t.sendResponseHeaders(200, response.length());
+                } else {
+                    response = "Failed to delete user.";
+                    t.sendResponseHeaders(500, response.length());
+                }
+
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.close();
+            } catch (IOException | RepositoryException e) {
+                response = "Invalid request data.";
+                try {
+                    t.sendResponseHeaders(400, response.length());
+                    OutputStream os = t.getResponseBody();
+                    os.write(response.getBytes(StandardCharsets.UTF_8));
+                    os.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+
+        public void handleUpdateUserRequest(HttpExchange t) throws IOException {
+            String response = "Invalid request";
+            Headers headers = t.getRequestHeaders();
+            List<String> authHeaders = headers.get("Authorization");
+
+            if (authHeaders == null || authHeaders.isEmpty()) {
+                t.sendResponseHeaders(400, response.length());
+                return;
+            }
+
+            String authHeader = authHeaders.get(0);
+            if (!authHeader.toLowerCase().startsWith("bearer ")) {
+                t.sendResponseHeaders(400, response.length());
+                return;
+            }
+
+            String token = authHeader.substring(7);
+            if (!JwtExample.validateToken(token)) {
+                response = "Unauthorized";
+                t.sendResponseHeaders(401, response.length());
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.close();
+                return;
+            }
+
+            // Извлекаем пользователя из тела запроса
+            UserUI usrUI = parseUserFromRequestBody(t);
+            InputStreamReader isr = new InputStreamReader(t.getRequestBody(), StandardCharsets.UTF_8);
+            JsonObject json = JsonParser.parseReader(isr).getAsJsonObject();
+            String newPassword = json.get("newPassword").getAsString();
+            String oldPassword = json.get("oldPassword").getAsString();
+            User usr = new User();
+            try {
+                usr = usrService.getUserById(-5555, usrUI.getId());
+            } catch (RepositoryException e) {
+                response = "Error updating user";
+                t.sendResponseHeaders(500, response.length());
+            }
+
+            // Проверка старого пароля
+            boolean passwordVerified = usr.getPassword().equals(oldPassword);
+            if (!passwordVerified) {
+                response = "Old password is incorrect";
+                t.sendResponseHeaders(400, response.length());
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.close();
+                return;
+            }
+
+            // Отправка двухфакторного кода на почту
+            String twoFactorCode = TwoFactorService.generateCode();
+            TwoFactorService.saveCodeForUser(usr.getLogin(), twoFactorCode, usr.getPassword());
+            TwoFactorService.sendTwoFactorCode(usr.getLogin(), twoFactorCode, "You are going to change password. This is code for changing it."); // Отправляем код на email пользователя
+            TwoFactorService.saveNewPasswordForUser(usr.getLogin(), newPassword);
+
+            // Ожидание подтверждения 2FA
+            JsonObject answer = new JsonObject();
+            answer.addProperty("answer", "Password change requested. Please confirm the change via the email.");
+            if (System.getenv("DTP_TESTING_TRUE") != null) {
+                answer.addProperty("code", twoFactorCode);
+            }
+            handleRequest(t, answer.toString(), 200);
+        }
+
+
+        public void handleConfirmPasswordChange(HttpExchange t) throws IOException {
+            String response = "Invalid request";
+            Headers headers = t.getRequestHeaders();
+            List<String> authHeaders = headers.get("Authorization");
+
+            if (authHeaders == null || authHeaders.isEmpty()) {
+                t.sendResponseHeaders(400, response.length());
+                return;
+            }
+
+            String authHeader = authHeaders.get(0);
+            if (!authHeader.toLowerCase().startsWith("bearer ")) {
+                t.sendResponseHeaders(400, response.length());
+                return;
+            }
+
+            String token = authHeader.substring(7);
+            if (!JwtExample.validateToken(token)) {
+                response = "Unauthorized";
+                t.sendResponseHeaders(401, response.length());
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.close();
+                return;
+            }
+
+            // Извлекаем данные из запроса
+            InputStreamReader isr = new InputStreamReader(t.getRequestBody(), StandardCharsets.UTF_8);
+            JsonObject json = JsonParser.parseReader(isr).getAsJsonObject();
+            String twoFactorCode = json.get("twoFactorCode").getAsString();
+            UserUI usrUI = parseUserFromRequestBody(t);
+            User usr = new User();
+            try {
+                usr = usrService.getUserById(-5555, usrUI.getId());
+            } catch (RepositoryException e) {
+                response = "Error updating user";
+                t.sendResponseHeaders(500, response.length());
+            }
+            String newPassword = TwoFactorService.getNewPasswordForUser(usr.getLogin());
+            usr.setPassword(newPassword);
+
+            // Проверяем 2FA код
+            String savedCode = TwoFactorService.getCodeForUser(usr.getLogin());
+            if (!(savedCode != null && savedCode.equals(twoFactorCode))) {
+                response = "Invalid two-factor code";
+                t.sendResponseHeaders(400, response.length());
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.close();
+                return;
+            }
+
+            // Обновляем пароль
+            try {
+                if (usrService.editUser(-5555, usr)) {
+                    response = "Password successfully updated";
+                    t.sendResponseHeaders(200, response.length());
+                } else {
+                    response = "Failed to update password";
+                    t.sendResponseHeaders(500, response.length());
+                }
+            } catch (AccessDeniedException e) {
+                response = "Access denied";
+                t.sendResponseHeaders(403, response.length());
+            } catch (RepositoryException e) {
+                response = "Error updating user";
+                t.sendResponseHeaders(500, response.length());
+            }
+
+            OutputStream os = t.getResponseBody();
+            os.write(response.getBytes(StandardCharsets.UTF_8));
+            os.close();
+        }
 
         private void handleOptionsRequest(HttpExchange t) throws IOException {
             String response = "HTTP method allowed: GET, POST, DELETE, OPTIONS, HEAD, PUT,";
@@ -270,10 +493,10 @@ public class BackendHttpServer {
         if (typeDB.equals("postgres"))
         {
             mngr = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
-            String schema = System.getProperty("testSchema");
-            if (schema != null) {
-                mngr.setSearchPath(schema);
-            }
+//            String schema = System.getProperty("testSchema");
+//            if (schema != null) {
+//                mngr.setSearchPath(schema);
+//            }
 //            mngr = PostgresConnectionManager.getInstance(host, database, username, password);
             dtpRep = new PostgresDTPRepository(mngr);
             carRep = new PostgresCarRepository(mngr);
@@ -298,6 +521,7 @@ public class BackendHttpServer {
     public static UserUI getUser(String token) {
         UserUI usrUI = new UserUI();
         if (token != null && !token.equals("null")) {
+            Integer a = JwtExample.getUserID(token);
             usrUI.setId(JwtExample.getUserID(token));
             usrUI.setRole(JwtExample.getUserRole(token));
         }
@@ -320,6 +544,21 @@ public class BackendHttpServer {
         } finally {
             reader.close();
         }
+    }
+
+    private static UserUI parseUserFromRequestBody(HttpExchange t) throws IOException {
+        Headers headers = t.getRequestHeaders();
+        List<String> authHeaders = headers.get("Authorization");
+        String token = "null";
+        if (authHeaders != null && !authHeaders.isEmpty()) {
+            String authHeader = authHeaders.get(0);
+            if (authHeader != null && authHeader.toLowerCase().startsWith("bearer ")) {
+                // Убираем "Bearer " и пробел
+                token = authHeader.substring(7).trim(); // Срезаем первые 7 символов ("Bearer ") и удаляем пробелы
+            }
+        }
+
+        return getUser(token);
     }
 
 }

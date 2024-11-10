@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.util.List;
+import java.util.Objects;
 
 public class UserController {
     private UserService usrService;
@@ -107,12 +108,16 @@ public class UserController {
     public void handleRegisterRequest(HttpExchange t) throws IOException {
         // Парсинг параметров
         JsonObject jsonObject = parseJsonRequest(t);
-        String login = jsonObject.get("login").getAsString();
+        String login = Objects.requireNonNull(jsonObject).get("login").getAsString();
         String password = jsonObject.get("password").getAsString();
+        int userId = -1;
+        if (jsonObject.has("id") && !jsonObject.get("id").isJsonNull()) {
+            userId = jsonObject.get("id").getAsInt();
+        }
         String role = "User";
         // Регистрация пользователя
         UserController usrController = new UserController(usrService);
-        UserUI usr = new UserUI(login, password, role);
+        UserUI usr = new UserUI(userId, login, password, role);
         boolean res = usrController.addUser(usr);
         // Ответ
         if (!res) {

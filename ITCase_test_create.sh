@@ -22,6 +22,8 @@ else
     echo "Schema $SCHEMA_NAME already exists."
 fi
 
+psql -U postgres -d itcase_test -c "ALTER DATABASE itcase_test SET search_path TO $SCHEMA_NAME;"
+
 # Выполняем SQL-запросы для создания таблиц в тестовой базе данных
 psql -U postgres -d itcase_test -c "
     DROP TABLE IF EXISTS $SCHEMA_NAME.DTP CASCADE;

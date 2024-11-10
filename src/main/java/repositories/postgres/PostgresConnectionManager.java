@@ -1,94 +1,87 @@
 package repositories.postgres;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
+import java.sql.*;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 
 public class PostgresConnectionManager {
     private static volatile PostgresConnectionManager instance;
-    private HikariDataSource dataSource;
-    private Statement statement;
-    Connection connection;
+    private Connection connection;
+    private boolean readOnly = false;
 
     private PostgresConnectionManager(String serverAddress, String dbName, String username, String password) {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:postgresql://" + serverAddress + "/" + dbName);
-        config.setUsername(username);
-        config.setPassword(password);
-        config.setMaximumPoolSize(100); // Максимальное количество соединений в пуле
-        config.setConnectionTimeout(4000); // Время ожидания получения соединения
-//        config.setIdleTimeout(250); // Время ожидания перед закрытием неактивных соединений
-
-        dataSource = new HikariDataSource(config);
+        this.connection = connectToPostgres(serverAddress, dbName, username, password);
     }
 
     public static PostgresConnectionManager getInstance(String serverAddress, String dbName, String username, String password) {
-        if (instance == null || instance.isClosed()) {
-            synchronized (PostgresConnectionManager.class) {
-                if (instance == null || instance.isClosed()) {
-                    instance = new PostgresConnectionManager(serverAddress, dbName, username, password);
-                }
-            }
+        if (instance == null) {
+            instance = new PostgresConnectionManager(serverAddress, dbName, username, password);
         }
         return instance;
     }
 
-    public boolean isClosed() {
-        return dataSource == null || dataSource.isClosed();
+
+    private Connection connectToPostgres(String serverAddress, String dbName, String username, String password) {
+        Connection conn = null;
+        String url = "jdbc:postgresql://" + serverAddress + "/" + dbName;
+        try {
+            conn = DriverManager.getConnection(url, username, password);
+            String onlyReadFlag = System.getProperty("OnlyRead");
+            if ("true".equalsIgnoreCase(onlyReadFlag)) {
+                readOnly = true;
+                conn.setReadOnly(true);  // Устанавливаем режим только для чтения, если флаг true
+                System.out.println("Connected to the PostgreSQL server with read-only permissions.");
+            }
+            System.out.println("Connected to the PostgreSQL server successfully.");
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return conn;
     }
 
     // Выполнение запроса query
     public ResultSet executeSQLQuery(String query) {
-        ResultSet resultSet = null;
-
-        try {
-            if (connection == null) {
-                connection = dataSource.getConnection();
+        ResultSet result = null;
+        if (query.trim().toUpperCase().startsWith("SELECT")) {  // Проверка, что запрос является SELECT
+            System.out.println(query.trim().toUpperCase());
+            System.out.println("ReadOnly " + readOnly);
+            try {
+                Statement statement = connection.createStatement();
+                boolean hasResults = statement.execute(query);
+                if (hasResults) {
+                    result = statement.getResultSet();
+                }
+            } catch (SQLException e) {
+                System.out.println("Error executing SQL query: " + e.getMessage());
             }
-            if (statement == null) {
-                statement = connection.createStatement();
-            }
-            boolean hasResults = statement.execute(query);
-            if (hasResults) {
-                resultSet = statement.getResultSet();
-            }
-        } catch (SQLException e) {
-            System.out.println("Error executing SQL query: " + e.getMessage());
-        } finally {
-            // Закрываем Connection, если он не нужен
-            // Не закрываем Statement, так как мы можем вернуть ResultSet
+        } else {
+            System.out.println("Only SELECT queries are allowed.");
         }
-
-        // Возвращаем ресурсы, которые должны быть закрыты пользователем
-        return resultSet;
+//        try {
+//            Statement statement = connection.createStatement();
+//            boolean hasResults = statement.execute(query);
+//            if (hasResults) {
+//                result = statement.getResultSet();
+//            }
+//        } catch (SQLException e) {
+//            System.out.println("Error executing SQL query: " + e.getMessage());
+//        }
+        return result;
     }
 
-    public void setSearchPath(String schemaName) {
-        try {
-            if (connection == null) {
-                connection = dataSource.getConnection();
-            }
-            String query = String.format("SET search_path TO %s;", schemaName);
-            connection.createStatement().execute(query);
-            System.out.println("Set search_path TO " + schemaName);
-        } catch (SQLException e) {
-            System.out.println("Error setting search path: " + e.getMessage());
-        }
-    }
 
 
     public Connection getConnection() {
-        return connection;
+        return this.connection;
     }
 
     public void closeConnection() {
-        if (dataSource != null) {
-            dataSource.close();
-            System.out.println("Connection pool closed successfully.");
+        try {
+            if (connection != null) {
+                connection.close();
+                System.out.println("Connection to the PostgreSQL server closed successfully.");
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
     }
 }

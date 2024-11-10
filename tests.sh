@@ -2,11 +2,11 @@
 
 # Функция для генерации отчета Allure
 generate_report() {
-    cp -r ./allure-report/history ./allure-results
-    allure generate allure-results --clean
-    if [ "$IS_REPORT" = "1" ] || [ -z "$IS_REPORT" ]; then
+  if [ "$IS_REPORT" = "1" ] || [ -z "$IS_REPORT" ]; then
+      cp -r ./allure-report/history ./allure-results
+      allure generate allure-results --clean
       allure serve allure-results
-    fi
+  fi
 }
 
 run_unit() {
@@ -35,23 +35,9 @@ run_integration() {
 run_e2e() {
     SCHEMA_NAME="test_schema_$(uuidgen | tr '-' '_')"
     ./ITCase_test_create.sh "$SCHEMA_NAME"
-      while lsof -i :8000 >/dev/null; do
-          echo "Port 8000 is already in use. Waiting for it to become available..."
-          sleep 10
-      done
     DTP_TESTING_TRUE=true mvn exec:java -Dexec.mainClass="app.backend.BackendHttpServer" -DtestSchema="$SCHEMA_NAME" &
-    SERVER_PID=$!  # Сохраняем PID сервера
-
-    # Проверка, что сервер начал слушать на порту 8000
-    for i in {1..10}; do
-        if lsof -i :8000 >/dev/null; then
-            echo "Server is running on port 8000."
-            break
-        fi
-        echo "Waiting for server to start on port 8000..."
-        sleep 5
-    done
-    mvn clean install -Pe2e
+    	  sleep 10
+    mvn test -Pe2e
     TEST_RESULT=$?
     bash -c 'unset DTP_TESTING_TRUE'
     pkill -f Backend  # Останавливаем сервер после завершения тестов

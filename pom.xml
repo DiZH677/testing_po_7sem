@@ -23,12 +23,37 @@
             <scope>test</scope>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>log4j</groupId>-->
-<!--            <artifactId>log4j</artifactId>-->
-<!--            <version>1.2.17</version>-->
-<!--            <scope>test</scope> &lt;!&ndash; если это нужно только для тестов &ndash;&gt;-->
-<!--        </dependency>-->
+        <!-- https://mvnrepository.com/artifact/org.junit.vintage/junit-vintage-engine -->
+        <dependency>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
+            <version>5.7.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Cucumber Java dependency -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>7.11.1</version> <!-- проверь актуальную версию на https://mvnrepository.com/ -->
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit dependency -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version> <!-- для JUnit 4, для JUnit 5 замени на "junit-jupiter-api" -->
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Cucumber JUnit dependency -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-junit</artifactId>
+            <version>7.11.1</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -140,6 +165,12 @@
             <version>5.11.0</version>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
+            <version>1.4.5</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -199,28 +230,17 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0-M5</version> <!-- используйте актуальную версию -->
                 <configuration>
-<!--                    <forkCount>1</forkCount>  &lt;!&ndash; запускает один тестовый класс в одной JVM &ndash;&gt;-->
-<!--                    <reuseForks>false</reuseForks> &lt;!&ndash; каждый класс запускается в новой JVM &ndash;&gt;-->
-<!--                    <forkMode>always</forkMode> &lt;!&ndash; каждый тест запускается в новой JVM &ndash;&gt;-->
-<!--                    <runOrder>random</runOrder>-->
-<!--                        <parallel>methods</parallel> &lt;!&ndash; Задает, что тесты будут выполняться параллельно по методам &ndash;&gt;-->
-<!--                        <threadCount>3</threadCount> &lt;!&ndash; Количество потоков для выполнения тестов &ndash;&gt;-->
+                    <includes>
+                        <include>**/CucumberTest.java</include>
+                    </includes>
                 </configuration>
             </plugin>
-
-
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.0.0-M5</version>
                 <configuration>
-                    <!--                    <forkCount>1</forkCount>  &lt;!&ndash; запускает один тестовый класс в одной JVM &ndash;&gt;-->
-                    <!--                    <reuseForks>false</reuseForks> &lt;!&ndash; каждый класс запускается в новой JVM &ndash;&gt;-->
-                    <!--                    <forkMode>always</forkMode> &lt;!&ndash; каждый тест запускается в новой JVM &ndash;&gt;-->
-                    <!--                    <runOrder>random</runOrder>-->
-<!--                    <parallel>methods</parallel> &lt;!&ndash; Задает, что тесты будут выполняться параллельно по методам &ndash;&gt;-->
-<!--                    <threadCount>3</threadCount> &lt;!&ndash; Количество потоков для выполнения тестов &ndash;&gt;-->
                 </configuration>
             </plugin>
         </plugins>
@@ -267,10 +287,10 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
-                            <parallel>none</parallel>
-                            <forkCount>1</forkCount>
                             <includes>
-                                <include>**/MainE2E.java</include> <!-- Или ваш класс E2E тестов -->
+<!--                                <include>**/MainE2E.java</include> &lt;!&ndash; Или ваш класс E2E тестов &ndash;&gt;-->
+                                <include>**/CucumberTestE2E.java</include> <!-- Или ваш класс E2E тестов -->
+<!--                                <include>**/Auth2FAStepsE2E.java</include> &lt;!&ndash; Или ваш класс E2E тестов &ndash;&gt;-->
                             </includes>
                         </configuration>
                     </plugin>
