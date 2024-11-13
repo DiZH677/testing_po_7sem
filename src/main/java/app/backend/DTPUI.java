@@ -88,17 +88,22 @@ public class DTPUI {
     public void setCountTs(int countTs) { this.countTs = countTs; }
     public void setCountParts(int countParts) { this.countParts = countParts; }
     public void print() {
-        String desc = (description != null && description.length() > 20) ? description.substring(0, 17) + "..." : (description != null ? description : "");
-        String coordWFormatted = ("" + coordW).length() > 18 ? ("" + coordW).substring(0, 15) + "..." : "" + coordW;
-        String coordLFormatted = ("" + coordL).length() > 18 ? ("" + coordL).substring(0, 15) + "..." : "" + coordL;
-        String dorTrimmed = (dor != null && dor.length() > 15) ? dor.substring(0, 12) + "..." : (dor != null ? dor : "");
-        String osvTrimmed = (osv != null && osv.length() > 15) ? osv.substring(0, 12) + "..." : (osv != null ? osv : "");
+        String desc = formatString(description, 20);
+        String coordWFormatted = formatString(Double.toString(coordW), 18);
+        String coordLFormatted = formatString(Double.toString(coordL), 18);
+        String dorTrimmed = formatString(dor, 15);
+        String osvTrimmed = formatString(osv, 15);
 
         System.out.printf("ID: %-5s | Описание: %-20s | Дата и Время: %-20s | Координаты: (%-18s, %-18s) | Дорожные условия: %-15s | Обстоятельства: %-15s | Количество транспортных средств: %-3s | Количество пострадавших: %-3s%n",
                 id, desc, datetime, coordWFormatted, coordLFormatted, dorTrimmed, osvTrimmed, countTs, countParts);
+    }
 
-
-
+    private String formatString(String input, int maxLength) {
+        if (input == null) return "";
+        if (input.length() > maxLength) {
+            return input.substring(0, maxLength - 3) + "...";
+        }
+        return input;
     }
 
     public DTP getDTP() {

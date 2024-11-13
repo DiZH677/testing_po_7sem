@@ -4,7 +4,6 @@ import IRepositories.ICarRepository;
 import IRepositories.IDTPRepository;
 import IRepositories.IParticipantRepository;
 import IRepositories.IUserRepository;
-import app.console.ConsoleApp;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.Headers;
@@ -27,8 +26,11 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.function.Consumer;
 
 public class BackendHttpServer {
     private static final Scanner scanner = new Scanner(System.in);
@@ -39,6 +41,8 @@ public class BackendHttpServer {
     private static UserService usrService;
     private static ReportService reportService;
     private static User usr;
+
+//    private void abc() {return; }
 
     public static void main(String[] args) throws Exception {
         configureAndConnectToDatabase();
@@ -63,21 +67,21 @@ public class BackendHttpServer {
         private void handleAuthRequest(HttpExchange t) throws IOException, RepositoryException {
             if (!t.getRequestMethod().equals("POST")) {
                 String response = "Invalid type request... Must be POST, has – " + t.getRequestMethod();
-                CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
+                CustomLogger.logError(response, BackendHttpServer.class.getSimpleName());
                 handleRequest(t, response, 400);
             }
 
-            CustomLogger.logInfo("Parsing json...", ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo("Parsing json...", BackendHttpServer.class.getSimpleName());
             JsonObject jsonObject = parseJsonRequest(t);
-            CustomLogger.logInfo("Json parsed", ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo("Json parsed", BackendHttpServer.class.getSimpleName());
 
             if (jsonObject == null || !jsonObject.has("login") || !jsonObject.has("password")) {
                 if (jsonObject == null)
-                    CustomLogger.logError("Invalid body request... json object is null", ConsoleApp.class.getSimpleName());
+                    CustomLogger.logError("Invalid body request... json object is null", BackendHttpServer.class.getSimpleName());
                 else
-                    CustomLogger.logError("Invalid body request... " + jsonObject.getAsString(), ConsoleApp.class.getSimpleName());
+                    CustomLogger.logError("Invalid body request... " + jsonObject.getAsString(), BackendHttpServer.class.getSimpleName());
                 String response = "Invalid request (no json or login/password in it)";
-                CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
+                CustomLogger.logError(response, BackendHttpServer.class.getSimpleName());
                 handleRequest(t, response, 400);
                 return;
             }
@@ -88,7 +92,7 @@ public class BackendHttpServer {
             User usrBL = usrService.getUserLP(login, password);
             if (usrBL == null) {
                 String response = "User is null";
-                CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
+                CustomLogger.logError(response, BackendHttpServer.class.getSimpleName());
                 handleRequest(t, response, 400);
                 return;
             }
@@ -144,86 +148,62 @@ public class BackendHttpServer {
             }
         }
 
+        @FunctionalInterface
+        public interface CheckedConsumer<T> {
+            void accept(T t) throws IOException, RepositoryException;
+        }
+
+        public <T> Consumer<T> wrapChecked(CheckedConsumer<T> checkedConsumer) {
+            return t -> {
+                try {
+                    checkedConsumer.accept(t);
+                } catch (IOException e) {
+                    CustomLogger.logError("IO Exception in handler", BackendHttpServer.class.getSimpleName());
+                } catch (RepositoryException e) {
+                    CustomLogger.logError("RepositoryException in handler", BackendHttpServer.class.getSimpleName());
+                }
+            };
+        }
+
         @Override
         public void handle(HttpExchange t) throws IOException {
             String requestPath = t.getRequestURI().getPath();
-            CustomLogger.logInfo("User input path: " + requestPath, ConsoleApp.class.getSimpleName());
+            String requestMethod = t.getRequestMethod();
 
+            // Настройка заголовков
             t.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-            t.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization"); // Добавление "Authorization"
+            t.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization");
             t.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD, PUT, DELETE");
             t.getResponseHeaders().add("Content-Type", "application/json");
 
-            String requestMethod = t.getRequestMethod();
+            // Инициализация карты маршрутов
+            Map<String, Consumer<HttpExchange>> routes = new HashMap<>();
+            routes.put("OPTIONS", wrapChecked(this::handleOptionsRequest));
+            routes.put("/auth|POST", wrapChecked(this::handleAuthRequest));
+            routes.put("/auth/verify-2fa|POST", wrapChecked(this::handleVerify2FARequest));
+            routes.put("/user|GET", wrapChecked(this::handleUserRequest));
+            routes.put("/user|PUT", wrapChecked(this::handleUpdateUserRequest));
+            routes.put("/user|DELETE", wrapChecked(this::handleDelUserRequest));
+            routes.put("/user/confirm-password|PUT", wrapChecked(this::handleConfirmPasswordChange));
+            routes.put("/viewDTP|GET", wrapChecked(this::handleViewDTPRequest));
+            routes.put("/addDTP|POST", wrapChecked(this::handleAddDTPRequest));
+            routes.put("/dtps/\\d+|GET", wrapChecked(this::handleGetDTPRequest));
+            routes.put("/dtps/\\d+|PUT", wrapChecked(this::handleEditDTPRequest));
+            routes.put("/dtps/\\d+|DELETE", wrapChecked(this::handleDelDTPRequest));
+            routes.put("/report|GET", wrapChecked(this::handleGetReportRequest));
+            routes.put("/register|POST", wrapChecked(this::handleRegisterRequest));
 
-            if ("/auth".equals(requestPath)) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("POST")) {
-                    try {
-                        handleAuthRequest(t);
-                    } catch (RepositoryException e) {
-                        CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
-                        handleRequest(t, "Invalid request", 400);
-                    }
-                }
-            } else if ("/auth/verify-2fa".equals(requestPath) && "POST".equals(requestMethod)) {
+            // Выбор и выполнение обработчика
+            Consumer<HttpExchange> handler = routes.getOrDefault(requestPath + "|" + requestMethod, exchange -> {
+                CustomLogger.logInfo("Default request", DTPController.class.getSimpleName());
                 try {
-                    handleVerify2FARequest(t);
-                } catch (RepositoryException e) {
-                    CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
-                    handleRequest(t, "Invalid request", 400);
+                    handleRequest(exchange, "Undefined request", 404);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
-            } else if ("/user".equals(requestPath)) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("GET")) {
-                    handleUserRequest(t);
-                } else if (requestMethod.equals("PUT")) {
-                    handleUpdateUserRequest(t);
-                } else if (requestMethod.equals("DELETE")) {
-                    handleDelUserRequest(t);
-                }
-            } else if ("/user/confirm-password".equals(requestPath) && "PUT".equals(requestMethod)) {
-                handleConfirmPasswordChange(t);
-            } else if ("/viewDTP".equals(requestPath)) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("GET")) {
-                    handleViewDTPRequest(t);
-                }
-            } else if ("/addDTP".equals(requestPath)) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("POST")) {
-                    handleAddDTPRequest(t);
-                }
-            } else if (requestPath.matches("^/dtps/\\d+$")) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("GET")) {
-                    handleGetDTPRequest(t);
-                } else if (requestMethod.equals("PUT")) {
-                    handleEditDTPRequest(t);
-                } else if (requestMethod.equals("DELETE")) {
-                    handleDelDTPRequest(t);
-                }
-            } else if ("/report".equals(requestPath)) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("GET")) {
-                    handleGetReportRequest(t);
-                }
-            } else if ("/register".equals(requestPath)) {
-                if (requestMethod.equals("OPTIONS")) {
-                    handleOptionsRequest(t);
-                } else if (requestMethod.equals("POST")) {
-                    handleRegisterRequest(t);
-                }
-            } else {
-                CustomLogger.logInfo("Default request", ConsoleApp.class.getSimpleName());
-                handleRequest(t, "Undefined request", 404);
-            }
+            });
+
+            handler.accept(t);
         }
 
         private void handleDelUserRequest(HttpExchange t) {
@@ -340,76 +320,93 @@ public class BackendHttpServer {
 
         public void handleConfirmPasswordChange(HttpExchange t) throws IOException {
             String response = "Invalid request";
-            Headers headers = t.getRequestHeaders();
-            List<String> authHeaders = headers.get("Authorization");
 
-            if (authHeaders == null || authHeaders.isEmpty()) {
-                t.sendResponseHeaders(400, response.length());
-                return;
-            }
-
-            String authHeader = authHeaders.get(0);
-            if (!authHeader.toLowerCase().startsWith("bearer ")) {
-                t.sendResponseHeaders(400, response.length());
-                return;
-            }
-
-            String token = authHeader.substring(7);
-            if (!JwtExample.validateToken(token)) {
+            // Проверяем авторизацию
+            if (!isAuthorized(t)) {
                 response = "Unauthorized";
-                t.sendResponseHeaders(401, response.length());
-                OutputStream os = t.getResponseBody();
-                os.write(response.getBytes(StandardCharsets.UTF_8));
-                os.close();
+                sendResponse(t, 401, response);
                 return;
             }
 
             // Извлекаем данные из запроса
-            InputStreamReader isr = new InputStreamReader(t.getRequestBody(), StandardCharsets.UTF_8);
-            JsonObject json = JsonParser.parseReader(isr).getAsJsonObject();
+            JsonObject json = getRequestBody(t);
             String twoFactorCode = json.get("twoFactorCode").getAsString();
             UserUI usrUI = parseUserFromRequestBody(t);
-            User usr = new User();
-            try {
-                usr = usrService.getUserById(-5555, usrUI.getId());
-            } catch (RepositoryException e) {
+
+            // Получаем пользователя
+            User usr = getUser(usrUI.getId());
+            if (usr == null) {
                 response = "Error updating user";
-                t.sendResponseHeaders(500, response.length());
+                sendResponse(t, 500, response);
+                return;
             }
-            String newPassword = TwoFactorService.getNewPasswordForUser(usr.getLogin());
-            usr.setPassword(newPassword);
 
             // Проверяем 2FA код
-            String savedCode = TwoFactorService.getCodeForUser(usr.getLogin());
-            if (!(savedCode != null && savedCode.equals(twoFactorCode))) {
+            if (!validateTwoFactorCode(usr, twoFactorCode)) {
                 response = "Invalid two-factor code";
-                t.sendResponseHeaders(400, response.length());
-                OutputStream os = t.getResponseBody();
-                os.write(response.getBytes(StandardCharsets.UTF_8));
-                os.close();
+                sendResponse(t, 400, response);
                 return;
             }
 
             // Обновляем пароль
-            try {
-                if (usrService.editUser(-5555, usr)) {
-                    response = "Password successfully updated";
-                    t.sendResponseHeaders(200, response.length());
-                } else {
-                    response = "Failed to update password";
-                    t.sendResponseHeaders(500, response.length());
-                }
-            } catch (AccessDeniedException e) {
-                response = "Access denied";
-                t.sendResponseHeaders(403, response.length());
-            } catch (RepositoryException e) {
-                response = "Error updating user";
-                t.sendResponseHeaders(500, response.length());
+            response = updatePassword(usr);
+            sendResponse(t, response.equals("Password successfully updated") ? 200 : 500, response);
+        }
+
+        private boolean isAuthorized(HttpExchange t) {
+            Headers headers = t.getRequestHeaders();
+            List<String> authHeaders = headers.get("Authorization");
+
+            if (authHeaders == null || authHeaders.isEmpty()) {
+                return false;
             }
 
-            OutputStream os = t.getResponseBody();
-            os.write(response.getBytes(StandardCharsets.UTF_8));
-            os.close();
+            String authHeader = authHeaders.get(0);
+            return authHeader.toLowerCase().startsWith("bearer ") && JwtExample.validateToken(authHeader.substring(7));
+        }
+
+        private JsonObject getRequestBody(HttpExchange t) throws IOException {
+            InputStreamReader isr = new InputStreamReader(t.getRequestBody(), StandardCharsets.UTF_8);
+            return JsonParser.parseReader(isr).getAsJsonObject();
+        }
+
+        private User getUser(int userId) {
+            try {
+                return usrService.getUserById(-5555, userId);
+            } catch (RepositoryException e) {
+                return null;
+            } catch (AccessDeniedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private boolean validateTwoFactorCode(User usr, String twoFactorCode) {
+            String savedCode = TwoFactorService.getCodeForUser(usr.getLogin());
+            return savedCode != null && savedCode.equals(twoFactorCode);
+        }
+
+        private String updatePassword(User usr) throws IOException {
+            String newPassword = TwoFactorService.getNewPasswordForUser(usr.getLogin());
+            usr.setPassword(newPassword);
+
+            try {
+                if (usrService.editUser(-5555, usr)) {
+                    return "Password successfully updated";
+                } else {
+                    return "Failed to update password";
+                }
+            } catch (AccessDeniedException e) {
+                return "Access denied";
+            } catch (RepositoryException e) {
+                return "Error updating user";
+            }
+        }
+
+        private void sendResponse(HttpExchange t, int statusCode, String response) throws IOException {
+            t.sendResponseHeaders(statusCode, response.length());
+            try (OutputStream os = t.getResponseBody()) {
+                os.write(response.getBytes(StandardCharsets.UTF_8));
+            }
         }
 
         private void handleOptionsRequest(HttpExchange t) throws IOException {
@@ -492,7 +489,7 @@ public class BackendHttpServer {
         IUserRepository usrRep = null;
         if (typeDB.equals("postgres"))
         {
-            mngr = PostgresConnectionManager.getInstance(host, "itcase_test", username, password);
+            mngr = PostgresConnectionManager.getInstance(host, database, username, password);
 //            String schema = System.getProperty("testSchema");
 //            if (schema != null) {
 //                mngr.setSearchPath(schema);

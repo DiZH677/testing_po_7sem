@@ -1,6 +1,5 @@
 package app.backend;
 
-import app.console.ConsoleApp;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.Headers;
@@ -122,12 +121,12 @@ public class UserController {
         // Ответ
         if (!res) {
             String response = "User wasn't added";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, ReportController.class.getSimpleName());
             handleRequest(t, response, 500);
         }
         else {
             String response = "User was added successfully";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, ReportController.class.getSimpleName());
             handleRequest(t, response, 200);
         }
     }

@@ -147,6 +147,20 @@
             <scope>test</scope> <!-- Зависимость только для тестов -->
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-install-plugin</artifactId>
+            <version>2.4</version>
+            <type>maven-plugin</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-deploy-plugin</artifactId>
+            <version>2.7</version>
+            <type>maven-plugin</type>
+        </dependency>
+
         <!-- JSON библиотеки -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -170,6 +184,17 @@
             <groupId>com.sun.mail</groupId>
             <artifactId>javax.mail</artifactId>
             <version>1.4.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-core</artifactId>
+            <version>7.7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-java</artifactId>
+            <version>7.7.0</version>
         </dependency>
     </dependencies>
 
@@ -201,7 +226,6 @@
                 </executions>
             </plugin>
 
-
             <!-- Плагин для создания .jar файла -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -210,7 +234,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>main.java.app.console.ConsoleApp</mainClass> <!-- Укажи свой главный класс -->
+                            <mainClass>main.java.app.backend.BackendHttpServer</mainClass> <!-- Укажи свой главный класс -->
                         </manifest>
                     </archive>
                 </configuration>
@@ -242,6 +266,25 @@
                 <version>3.0.0-M5</version>
                 <configuration>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>3.14.0</version>
+                <configuration>
+                    <rulesets>
+                        <ruleset>pmd-ruleset.xml</ruleset>
+                    </rulesets>
+                    <targetJdk>1.8</targetJdk>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

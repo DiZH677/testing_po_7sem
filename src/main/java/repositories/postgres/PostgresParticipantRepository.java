@@ -166,52 +166,56 @@ public class PostgresParticipantRepository implements IParticipantRepository{
         List<Participant> result = new ArrayList<>();
         try {
             String query = getQuery(params);
-
             PreparedStatement pstmt = conn.prepareStatement(query);
-
             int parameterIndex = 1;
-            if (params.prIdBegin != null) {
-                pstmt.setInt(parameterIndex++, params.prIdBegin);
-            }
-            if (params.prIdEnd != null) {
-                pstmt.setInt(parameterIndex++, params.prIdEnd);
-            }
-            if (params.category != null) {
-                pstmt.setString(parameterIndex++, params.category);
-            }
-            if (params.pol != null) {
-                pstmt.setString(parameterIndex++, params.pol);
-            }
-            if (params.health != null) {
-                pstmt.setString(parameterIndex++, params.health);
-            }
-            if (params.safety_belt != null) {
-                pstmt.setBoolean(parameterIndex++, params.safety_belt);
-            }
 
-            // добавьте аналогичные блоки для остальных параметров
+            setQueryParameters(pstmt, parameterIndex, params);
 
             ResultSet rs = pstmt.executeQuery();
-            Participant prt;
             while (rs.next()) {
-                prt = new Participant(
-                        rs.getInt("id"),
-                        rs.getInt("vehicle_id"),
-                        rs.getString("category"),
-                        rs.getString("health"),
-                        rs.getString("pol"),
-                        rs.getBoolean("safety_belt")
-                );
-                result.add(prt);
+                result.add(mapToParticipant(rs));
             }
             rs.close();
             pstmt.close();
         } catch (SQLException e) {
             CustomLogger.logError("Error while getting Participant", this.getClass().getSimpleName());
-            throw new RepositoryException("Error while getting Participant by main.java.params...\n" + e.getMessage());
+            throw new RepositoryException("Error while getting Participant by params...\n" + e.getMessage());
         }
 
         return result;
+    }
+
+    private void setQueryParameters(PreparedStatement pstmt, int parameterIndex, ParticipantParams params) throws SQLException {
+        if (params.prIdBegin != null) {
+            pstmt.setInt(parameterIndex++, params.prIdBegin);
+        }
+        if (params.prIdEnd != null) {
+            pstmt.setInt(parameterIndex++, params.prIdEnd);
+        }
+        if (params.category != null) {
+            pstmt.setString(parameterIndex++, params.category);
+        }
+        if (params.pol != null) {
+            pstmt.setString(parameterIndex++, params.pol);
+        }
+        if (params.health != null) {
+            pstmt.setString(parameterIndex++, params.health);
+        }
+        if (params.safety_belt != null) {
+            pstmt.setBoolean(parameterIndex++, params.safety_belt);
+        }
+        // Добавьте аналогичные блоки для других параметров
+    }
+
+    private Participant mapToParticipant(ResultSet rs) throws SQLException {
+        return new Participant(
+                rs.getInt("id"),
+                rs.getInt("vehicle_id"),
+                rs.getString("category"),
+                rs.getString("health"),
+                rs.getString("pol"),
+                rs.getBoolean("safety_belt")
+        );
     }
 
     private static String getQuery(ParticipantParams params) {

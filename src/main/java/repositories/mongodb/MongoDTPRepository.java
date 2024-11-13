@@ -145,48 +145,62 @@ public class MongoDTPRepository implements IDTPRepository {
             List<DTP> result = new ArrayList<>();
             Document query = new Document();
 
-            if (params.dtpBegin != null && params.dtpEnd != null) {
-                query.append("datetime", new Document("$gte", params.dtpBegin).append("$lte", params.dtpEnd));
-            } else if (params.dtpBegin != null) {
-                query.append("datetime", new Document("$gte", params.dtpBegin));
-            } else if (params.dtpEnd != null) {
-                query.append("datetime", new Document("$lte", params.dtpEnd));
-            }
-
-            if (params.dtpIdBegin != null && params.dtpIdEnd != null) {
-                query.append("ID", new Document("$gte", params.dtpIdBegin).append("$lte", params.dtpIdEnd));
-            } else if (params.dtpIdBegin != null) {
-                query.append("ID", new Document("$gte", params.dtpIdBegin));
-            } else if (params.dtpIdEnd != null) {
-                query.append("ID", new Document("$lte", params.dtpIdEnd));
-            }
-
-            if (params.countTs != null) {
-                query.append("count_ts", params.countTs);
-            }
+            buildDatetimeQuery(params, query);
+            buildIdQuery(params, query);
+            buildCountTsQuery(params, query);
 
             MongoCursor<Document> cursor = collection.find(query).iterator();
             while (cursor.hasNext()) {
                 Document doc = cursor.next();
-                result.add(new DTP(
-                        doc.getInteger("ID"),
-                        doc.getString("description"),
-                        doc.getDate("datetime").toString(),
-                        doc.getDouble("coord_w"),
-                        doc.getDouble("coord_l"),
-                        doc.getString("dor"),
-                        doc.getString("osv"),
-                        doc.getInteger("count_ts"),
-                        doc.getInteger("count_parts")
-                ));
+                result.add(mapToDTP(doc));
             }
             cursor.close();
 
             return result;
         } catch (Exception e) {
-            CustomLogger.logError("Error while getting DTP by main.java.params", this.getClass().getSimpleName());
-            throw new RepositoryException("Error while getting DTP by main.java.params..." + e.getMessage());
+            CustomLogger.logError("Error while getting DTP by params", this.getClass().getSimpleName());
+            throw new RepositoryException("Error while getting DTP by params..." + e.getMessage());
         }
+    }
+
+    private void buildDatetimeQuery(DTPParams params, Document query) {
+        if (params.dtpBegin != null && params.dtpEnd != null) {
+            query.append("datetime", new Document("$gte", params.dtpBegin).append("$lte", params.dtpEnd));
+        } else if (params.dtpBegin != null) {
+            query.append("datetime", new Document("$gte", params.dtpBegin));
+        } else if (params.dtpEnd != null) {
+            query.append("datetime", new Document("$lte", params.dtpEnd));
+        }
+    }
+
+    private void buildIdQuery(DTPParams params, Document query) {
+        if (params.dtpIdBegin != null && params.dtpIdEnd != null) {
+            query.append("ID", new Document("$gte", params.dtpIdBegin).append("$lte", params.dtpIdEnd));
+        } else if (params.dtpIdBegin != null) {
+            query.append("ID", new Document("$gte", params.dtpIdBegin));
+        } else if (params.dtpIdEnd != null) {
+            query.append("ID", new Document("$lte", params.dtpIdEnd));
+        }
+    }
+
+    private void buildCountTsQuery(DTPParams params, Document query) {
+        if (params.countTs != null) {
+            query.append("count_ts", params.countTs);
+        }
+    }
+
+    private DTP mapToDTP(Document doc) {
+        return new DTP(
+                doc.getInteger("ID"),
+                doc.getString("description"),
+                doc.getDate("datetime").toString(),
+                doc.getDouble("coord_w"),
+                doc.getDouble("coord_l"),
+                doc.getString("dor"),
+                doc.getString("osv"),
+                doc.getInteger("count_ts"),
+                doc.getInteger("count_parts")
+        );
     }
 }
 

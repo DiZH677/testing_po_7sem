@@ -35,12 +35,12 @@ public class DTPService {
     }
 
     public List<DTP> getDTPsByParams(int usrid, DTPParams params) throws AccessDeniedException, RepositoryException {
-        if (!usrService.hasPermission(usrid, Permission.GET_DTP_BY_PARAMS)) {
-            CustomLogger.logWarning("User do not have main.java.permission", this.getClass().getSimpleName());
-            throw new AccessDeniedException("You do not have main.java.permission to perform this operation.");
-        }
-        else
-            CustomLogger.logInfo("Successful permissions", this.getClass().getSimpleName());
+//        if (!usrService.hasPermission(usrid, Permission.GET_DTP_BY_PARAMS)) {
+//            CustomLogger.logWarning("User do not have main.java.permission", this.getClass().getSimpleName());
+//            throw new AccessDeniedException("You do not have main.java.permission to perform this operation.");
+//        }
+//        else
+//            CustomLogger.logInfo("Successful permissions", this.getClass().getSimpleName());
         List<DTP> dtps = dtpRepository.getDTPByParams(params);
         CustomLogger.logInfo("Succesful of getting dtps", this.getClass().getSimpleName());
         return dtps;

@@ -1,6 +1,5 @@
 package app.backend;
 
-import app.console.ConsoleApp;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import exceptions.RepositoryException;
@@ -56,7 +55,7 @@ public class ReportController {
         // Валидация запроса
         AuthorizationResult resAuth = validateAuthorization(t);
         if (!resAuth.isValid()) {
-            CustomLogger.logError("resAuth is not valid (errors with token)", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("resAuth is not valid (errors with token)", ReportController.class.getSimpleName());
             handleRequest(t, "resAuth is not valid (errors with token)", 400);
             return;
         }
@@ -99,12 +98,12 @@ public class ReportController {
         // Ответ
         if (res == null) {
             String response = "File wasn't generated";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, ReportController.class.getSimpleName());
             handleRequest(t, response, 500);
         }
         else {
             String response = "File was downloaded successfully";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, ReportController.class.getSimpleName());
             t.getResponseHeaders().set("Content-Type", "application/octet-stream");
             t.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + fname + "." + format + "\"");
             t.sendResponseHeaders(200, res.length);
@@ -143,14 +142,14 @@ public class ReportController {
         Headers headers = t.getRequestHeaders();
         List<String> authHeaders = headers.get("Authorization");
         if (authHeaders == null || authHeaders.isEmpty()) {
-            CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("Invalid request", ReportController.class.getSimpleName());
             resAuth.setValid(false);
             return resAuth;
         }
         // Если нет токена
         String authHeader = authHeaders.get(0);
         if (authHeader == null || !authHeader.toLowerCase().startsWith("bearer ")) {
-            CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("Invalid request", ReportController.class.getSimpleName());
             resAuth.setValid(false);
             return resAuth;
         }
@@ -158,7 +157,7 @@ public class ReportController {
         String token = authHeader.substring(7);
         boolean res = JwtExample.validateToken(token);
         if (!res) {
-            CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("Invalid request", ReportController.class.getSimpleName());
             resAuth.setValid(false);
             return resAuth;
         }

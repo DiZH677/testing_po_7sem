@@ -173,51 +173,55 @@ public class PostgresCarRepository implements ICarRepository {
         List<Car> result = new ArrayList<>();
         try {
             String query = getQuery(params);
-
             PreparedStatement pstmt = conn.prepareStatement(query);
-
             int parameterIndex = 1;
-            if (params.carIdBegin != null) {
-                pstmt.setInt(parameterIndex++, params.carIdBegin);
-            }
-            if (params.carIdEnd != null) {
-                pstmt.setInt(parameterIndex++, params.carIdEnd);
-            }
-            if (params.color != null) {
-                pstmt.setString(parameterIndex++, params.color);
-            }
-            if (params.marka != null) {
-                pstmt.setString(parameterIndex++, params.marka);
-            }
-            if (params.model != null) {
-                pstmt.setString(parameterIndex++, params.model);
-            }
 
-            // добавьте аналогичные блоки для остальных параметров
+            setQueryParameters(pstmt, parameterIndex, params);
 
             ResultSet rs = pstmt.executeQuery();
-            Car car;
             while (rs.next()) {
-                car = new Car(
-                        rs.getInt("id"),
-                        rs.getInt("dtp_id"),
-                        rs.getString("marka_ts"),
-                        rs.getString("m_ts"),
-                        rs.getInt("car_year"),
-                        rs.getString("color"),
-                        rs.getString("type_ts")
-                );
-                result.add(car);
+                result.add(mapToCar(rs));
             }
             rs.close();
             pstmt.close();
         } catch (SQLException e) {
-            CustomLogger.logError("Error while getting Car by main.java.params", this.getClass().getSimpleName());
-            throw new RepositoryException("Error while getting Car by main.java.params...\n" + e.getMessage());
+            CustomLogger.logError("Error while getting Car by params", this.getClass().getSimpleName());
+            throw new RepositoryException("Error while getting Car by params...\n" + e.getMessage());
         }
 
-        CustomLogger.logInfo("Successful getting Car by main.java.params", this.getClass().getSimpleName());
+        CustomLogger.logInfo("Successful getting Car by params", this.getClass().getSimpleName());
         return result;
+    }
+
+    private void setQueryParameters(PreparedStatement pstmt, int parameterIndex, CarParams params) throws SQLException {
+        if (params.carIdBegin != null) {
+            pstmt.setInt(parameterIndex++, params.carIdBegin);
+        }
+        if (params.carIdEnd != null) {
+            pstmt.setInt(parameterIndex++, params.carIdEnd);
+        }
+        if (params.color != null) {
+            pstmt.setString(parameterIndex++, params.color);
+        }
+        if (params.marka != null) {
+            pstmt.setString(parameterIndex++, params.marka);
+        }
+        if (params.model != null) {
+            pstmt.setString(parameterIndex++, params.model);
+        }
+        // Аналогичные блоки для других параметров
+    }
+
+    private Car mapToCar(ResultSet rs) throws SQLException {
+        return new Car(
+                rs.getInt("id"),
+                rs.getInt("dtp_id"),
+                rs.getString("marka_ts"),
+                rs.getString("m_ts"),
+                rs.getInt("car_year"),
+                rs.getString("color"),
+                rs.getString("type_ts")
+        );
     }
 
     private static String getQuery(CarParams params) {

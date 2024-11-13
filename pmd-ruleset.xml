@@ -1,0 +1,17 @@
+<ruleset name="Custom Ruleset"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 http://pmd.sourceforge.net/ruleset_2_0_0.xsd">
+    <rule name="CyclomaticComplexity"
+          language="java"
+          message="The {0} has a cyclomatic complexity of {1} which is greater than the maximum allowed {2}."
+          class="net.sourceforge.pmd.lang.java.rule.design.CyclomaticComplexityRule">
+        <priority>3</priority>
+        <properties>
+            <property name="reportLevel" value="10"/>
+        </properties>
+    </rule>
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod">
+        <priority>3</priority>-
+    </rule>
+</ruleset>

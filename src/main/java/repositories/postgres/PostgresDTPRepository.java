@@ -180,53 +180,57 @@ public class PostgresDTPRepository implements IDTPRepository {
         List<DTP> result = new ArrayList<>();
         try {
             String query = getQuery(params);
-
             PreparedStatement pstmt = conn.prepareStatement(query);
-
             int parameterIndex = 1;
-            if (params.dtpBegin != null) {
-                pstmt.setTimestamp(parameterIndex++, new java.sql.Timestamp(params.dtpBegin.getTime()));
-            }
-            if (params.dtpEnd != null) {
-                pstmt.setTimestamp(parameterIndex++, new java.sql.Timestamp(params.dtpEnd.getTime()));
-            }
-            if (params.dtpIdBegin != null) {
-                pstmt.setInt(parameterIndex++, params.dtpIdBegin);
-            }
-            if (params.dtpIdEnd != null) {
-                pstmt.setInt(parameterIndex++, params.dtpIdEnd);
-            }
-            if (params.countTs != null) {
-                pstmt.setInt(parameterIndex++, params.countTs);
-            }
 
-            // добавьте аналогичные блоки для остальных параметров
+            setQueryParameters(pstmt, parameterIndex, params);
 
             ResultSet rs = pstmt.executeQuery();
-            DTP dtp;
             while (rs.next()) {
-                dtp = new DTP(
-                        rs.getInt("id"),
-                        rs.getString("description"),
-                        rs.getString("datetime"),
-                        rs.getDouble("coord_W"),
-                        rs.getDouble("coord_L"),
-                        rs.getString("dor"),
-                        rs.getString("osv"),
-                        rs.getInt("count_Ts"),
-                        rs.getInt("count_Parts")
-                );
-                result.add(dtp);
+                result.add(mapToDTP(rs));
             }
             rs.close();
             pstmt.close();
         } catch (SQLException e) {
-            CustomLogger.logError("Error while getting DTP by main.java.params", this.getClass().getSimpleName());
-            throw new RepositoryException("Error while getting DTP by main.java.params....\n" + e.getMessage());
+            CustomLogger.logError("Error while getting DTP by params", this.getClass().getSimpleName());
+            throw new RepositoryException("Error while getting DTP by params...\n" + e.getMessage());
         }
 
-        CustomLogger.logInfo("SQL getting DTP by main.java.params was executed", this.getClass().getSimpleName());
+        CustomLogger.logInfo("SQL getting DTP by params was executed", this.getClass().getSimpleName());
         return result;
+    }
+
+    private void setQueryParameters(PreparedStatement pstmt, int parameterIndex, DTPParams params) throws SQLException {
+        if (params.dtpBegin != null) {
+            pstmt.setTimestamp(parameterIndex++, new java.sql.Timestamp(params.dtpBegin.getTime()));
+        }
+        if (params.dtpEnd != null) {
+            pstmt.setTimestamp(parameterIndex++, new java.sql.Timestamp(params.dtpEnd.getTime()));
+        }
+        if (params.dtpIdBegin != null) {
+            pstmt.setInt(parameterIndex++, params.dtpIdBegin);
+        }
+        if (params.dtpIdEnd != null) {
+            pstmt.setInt(parameterIndex++, params.dtpIdEnd);
+        }
+        if (params.countTs != null) {
+            pstmt.setInt(parameterIndex++, params.countTs);
+        }
+        // Добавьте аналогичные блоки для других параметров
+    }
+
+    private DTP mapToDTP(ResultSet rs) throws SQLException {
+        return new DTP(
+                rs.getInt("id"),
+                rs.getString("description"),
+                rs.getString("datetime"),
+                rs.getDouble("coord_W"),
+                rs.getDouble("coord_L"),
+                rs.getString("dor"),
+                rs.getString("osv"),
+                rs.getInt("count_Ts"),
+                rs.getInt("count_Parts")
+        );
     }
 
     private static String getQuery(DTPParams params) {

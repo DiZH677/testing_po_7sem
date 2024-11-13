@@ -1,6 +1,5 @@
 package app.backend;
 
-import app.console.ConsoleApp;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.sun.net.httpserver.Headers;
@@ -63,14 +62,14 @@ public class DTPController {
         Headers headers = t.getRequestHeaders();
         List<String> authHeaders = headers.get("Authorization");
         if (authHeaders == null || authHeaders.isEmpty()) {
-            CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("Invalid request", DTPController.class.getSimpleName());
             resAuth.setValid(false);
             return resAuth;
         }
         // Если нет токена
         String authHeader = authHeaders.get(0);
         if (authHeader == null || !authHeader.toLowerCase().startsWith("bearer ")) {
-            CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("Invalid request", DTPController.class.getSimpleName());
             resAuth.setValid(false);
             return resAuth;
         }
@@ -78,7 +77,7 @@ public class DTPController {
         String token = authHeader.substring(7);
         boolean res = JwtExample.validateToken(token);
         if (!res) {
-            CustomLogger.logError("Invalid request", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("Invalid request", DTPController.class.getSimpleName());
             resAuth.setValid(false);
             return resAuth;
         }
@@ -137,49 +136,70 @@ public class DTPController {
         // Валидация запроса
         AuthorizationResult resAuth = validateAuthorization(t);
         if (!resAuth.isValid()) {
-            String response = "resAuth is not valid (errors with token)";
-            CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
-            handleRequest(t, response, 400);
+            handleRequest(t, "Authorization failed", 400);
             return;
         }
+
         // Парсинг параметров
+        DTPParams params = parseRequestParams(t);
+
+        // Обработка ролей
+        if (isGuestWithoutPermission(resAuth, params)) {
+            handleRequest(t, "No permission for date range", 400);
+            return;
+        }
+
+        // Получение списка ДТП
+        JsonObject dtps = fetchDTPList(resAuth, params);
+        if (dtps == null) {
+            handleRequest(t, "Failed to fetch DTPs", 500);
+            return;
+        }
+
+        // Ответ
+        handleRequest(t, new Gson().toJson(dtps), 200);
+    }
+
+    private DTPParams parseRequestParams(HttpExchange t) {
         Map<String, String> queryParameters = parseQueryParameters(t.getRequestURI().toString());
         DTPParams params = new DTPParams();
         SimpleDateFormat sdf = new SimpleDateFormat("yyy-MM-dd");
+
+        // Parse idBegin and idEnd
         params.dtpIdBegin = Integer.parseInt(queryParameters.get("idBegin"));
         params.dtpIdEnd = Integer.parseInt(queryParameters.get("idEnd"));
+
+        // Parse dateBegin and dateEnd
         try {
-            if (queryParameters.get("dateBegin") != null && !queryParameters.get("dateBegin").isEmpty())
-            {
+            if (queryParameters.get("dateBegin") != null && !queryParameters.get("dateBegin").isEmpty()) {
                 params.dtpBegin = sdf.parse(URLDecoder.decode(queryParameters.get("dateBegin"), StandardCharsets.UTF_8));
             }
-            if (queryParameters.get("dateBegin") != null && !queryParameters.get("dateBegin").isEmpty())
-            {
+            if (queryParameters.get("dateEnd") != null && !queryParameters.get("dateEnd").isEmpty()) {
                 params.dtpEnd = sdf.parse(URLDecoder.decode(queryParameters.get("dateEnd"), StandardCharsets.UTF_8));
             }
         } catch (Exception e) {
             params.dtpBegin = null;
             params.dtpEnd = null;
         }
-        // Обработка ролей
-        if (resAuth.getUserUI().getRole().equals("Guest") && (params.dtpBegin != null || params.dtpEnd != null)) {
-            String response = "Error in main.java.params: No main.java.permission for date begin/end";
-            handleRequest(t, response, 400);
-            return;
-        }
-        // Получение списка ДТП
-        DTPController dtpController = new DTPController(dtpService);
-        JsonObject dtps = dtpController.viewDTP(resAuth.getUserUI(), params);
-        if (dtps == null) {
-            String response = "Invalid request: dtps was null";
-            CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
-            handleRequest(t, response, 500);
-            return;
-        }
-        // Ответ
-        String response = new Gson().toJson(dtps);
-        handleRequest(t, response, 200);
+
+        return params;
     }
+
+    private boolean isGuestWithoutPermission(AuthorizationResult resAuth, DTPParams params) {
+        return resAuth.getUserUI().getRole().equals("Guest") && (params.dtpBegin != null || params.dtpEnd != null);
+    }
+
+    private JsonObject fetchDTPList(AuthorizationResult resAuth, DTPParams params) {
+        DTPController dtpController = new DTPController(dtpService);
+        return dtpController.viewDTP(resAuth.getUserUI(), params);
+    }
+
+    private void handleRequest(HttpExchange t, String response, int statusCode) throws IOException {
+            t.sendResponseHeaders(statusCode, response.getBytes(StandardCharsets.UTF_8).length);
+            OutputStream os = t.getResponseBody();
+            os.write(response.getBytes(StandardCharsets.UTF_8));
+            os.close();
+        }
 
     public boolean addDTP(UserUI usr, DTPUI dtp) {
         String date = dtp.getDatetime();
@@ -205,7 +225,7 @@ public class DTPController {
         // Валидация запроса
         AuthorizationResult resAuth = validateAuthorization(t);
         if (!resAuth.isValid()) {
-            CustomLogger.logError("resAuth is not valid (errors with token)", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("resAuth is not valid (errors with token)", DTPController.class.getSimpleName());
             handleRequest(t, "resAuth is not valid (errors with token)", 400);
             return;
         }
@@ -228,12 +248,12 @@ public class DTPController {
         // Ответ
         if (res) {
             String response = "DTP was added successfully";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 200);
         }
         else {
             String response = "DTP wasn't added";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 500);
         }
     }
@@ -282,7 +302,7 @@ public class DTPController {
         // Валидация запроса
         AuthorizationResult resAuth = validateAuthorization(t);
         if (!resAuth.isValid()) {
-            CustomLogger.logError("resAuth is not valid (errors with token)", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("resAuth is not valid (errors with token)", DTPController.class.getSimpleName());
             handleRequest(t, "resAuth is not valid (errors with token)", 400);
             return;
         }
@@ -290,7 +310,7 @@ public class DTPController {
         Integer dtpId = Integer.valueOf(t.getRequestURI().getPath().replaceAll("^/dtps/", ""));
         if (dtpId == null) {
             String response = "Invalid request: wrong parametrs";
-            CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logError(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 500);
             return;
         }
@@ -301,7 +321,7 @@ public class DTPController {
         DTPUI dtp = dtpController.getDTP(resAuth.getUserUI(), Integer.valueOf(dtpId));
         if (dtp == null) {
             String response = "Invalid request: dtp was null";
-            CustomLogger.logError(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logError(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 500);
             return;
         }
@@ -324,7 +344,7 @@ public class DTPController {
         // Валидация запроса
         AuthorizationResult resAuth = validateAuthorization(t);
         if (!resAuth.isValid()) {
-            CustomLogger.logError("resAuth is not valid (errors with token)", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("resAuth is not valid (errors with token)", DTPController.class.getSimpleName());
             handleRequest(t, "resAuth is not valid (errors with token)", 400);
             return;
         }
@@ -345,12 +365,12 @@ public class DTPController {
         // Ответ
         if (res) {
             String response = "DTP was added successfully";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 200);
         }
         else {
             String response = "DTP wasn't added";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 500);
         }
     }
@@ -371,7 +391,7 @@ public class DTPController {
         // Валидация запроса
         AuthorizationResult resAuth = validateAuthorization(t);
         if (!resAuth.isValid()) {
-            CustomLogger.logError("resAuth is not valid (errors with token)", ConsoleApp.class.getSimpleName());
+            CustomLogger.logError("resAuth is not valid (errors with token)", DTPController.class.getSimpleName());
             handleRequest(t, "resAuth is not valid (errors with token)", 400);
             return;
         }
@@ -391,12 +411,12 @@ public class DTPController {
         // Ответ
         if (res) {
             String response = "DTP was deleted successfully";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 200);
         }
         else {
             String response = "DTP wasn't deleted";
-            CustomLogger.logInfo(response, ConsoleApp.class.getSimpleName());
+            CustomLogger.logInfo(response, DTPController.class.getSimpleName());
             handleRequest(t, response, 500);
         }
     }

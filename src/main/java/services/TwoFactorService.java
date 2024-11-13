@@ -1,17 +1,10 @@
 package services;
 
-import java.io.Console;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import javax.net.ssl.SSLContext;
 
 
 public class TwoFactorService {
@@ -62,11 +55,6 @@ public class TwoFactorService {
         return newPasswords.get(email);
     }
 
-    // Удаление нового пароля после успешного подтверждения
-    public static void removeNewPasswordForUser(String email) {
-        newPasswords.remove(email);
-    }
-
     // Отправка 2FA-кода на email
     public static void sendTwoFactorCode(String email, String code, String msg) {
         // Настройки почтового сервера
@@ -104,5 +92,10 @@ public class TwoFactorService {
         } catch (MessagingException e) {
             e.printStackTrace();
         }
+
+        return;
+//        System.out.println("To check");
     }
+
+//    private int abc() { return 0; }
 }
